@@ -3,5 +3,9 @@
 version = 4
 
 [[package]]
+name = "assembler"
+version = "0.1.0"
+
+[[package]]
 name = "custom_pc"
 version = "0.1.0"

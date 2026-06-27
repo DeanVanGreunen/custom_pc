@@ -1,6 +1,26 @@
+[workspace]
+members = [".", "assembler"]
+resolver = "2"
+
 [package]
 name = "custom_pc"
 version = "0.1.0"
 edition = "2024"
+
+[[bin]]
+name = "custom_pc"
+path = "src/main.rs"
+
+[[bin]]
+name = "hex_dump"
+path = "tools/hex_dump.rs"
+
+[[bin]]
+name = "rom_builder"
+path = "tools/rom_builder.rs"
+
+[[bin]]
+name = "image_converter"
+path = "tools/image_converter.rs"
 
 [dependencies]
