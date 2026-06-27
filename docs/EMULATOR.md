@@ -1,3 +1,5 @@
+# Instruction Set - Jumps
+```
 Jz   { addr: u16 },   // Jump if Zero flag set         — last result was zero
 Jnz  { addr: u16 },   // Jump if Not Zero              — last result was non-zero
 Jc   { addr: u16 },   // Jump if Carry set             — unsigned overflow / no borrow
@@ -25,3 +27,52 @@ jlt — N != V: the sign flag was "wrong" due to overflow → strictly less
 jge — N == V: signed result was non-negative (possibly via overflow) → greater or equal
 jle — Z || (N != V): equal, or signed result was negative → less or equal
 The reason jgt/jlt/jge/jle can't just look at N alone is the overflow case. After cmp r0, r1 (which does r0 - r1), if the subtraction wraps around due to signed overflow, N gets the wrong sign. Checking N == V cancels that out: if both are set, overflow flipped the sign but the true result is still positive; if neither is set, no flip and the result is genuinely positive.
+
+The assembler binary is built with cargo build, then you invoke it once per file. From the workspace root:
+```
+
+# Build / Test
+
+```
+cargo build --bin asm
+Then assemble each example:
+
+
+.\target\debug\asm.exe examples\hello.asm     roms\hello.bin
+.\target\debug\asm.exe examples\fibonacci.asm roms\fibonacci.bin
+.\target\debug\asm.exe examples\counter.asm   roms\counter.bin
+.\target\debug\asm.exe examples\stack.asm     roms\stack.bin
+.\target\debug\asm.exe examples\graphics.asm  roms\graphics.bin
+Or as a one-liner loop:
+
+
+foreach ($f in Get-ChildItem examples\*.asm) {
+    .\target\debug\asm.exe $f.FullName "roms\$($f.BaseName).bin"
+}
+Each run prints the symbol map and byte count to stderr, e.g.:
+
+
+0004  done
+0016  msg
+0000  STDOUT
+assembled 21 bytes → roms\hello.bin
+To run a ROM on the emulator afterward:
+
+
+.\target\debug\custom_pc.exe roms\hello.bin
+Or with the interactive debugger:
+
+
+.\target\debug\custom_pc.exe roms\fibonacci.bin --debug
+```
+
+
+# Build and run commands
+Step 1 — assemble the source to a ROM binary:
+
+
+cargo run -p assembler --bin asm -- examples/graphics.asm examples/graphics.bin
+Step 2 — run the emulator (opens the pixel display window):
+
+
+cargo run --bin custom_pc -- examples/graphics.bin

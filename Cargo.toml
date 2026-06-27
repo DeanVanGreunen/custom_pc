@@ -24,3 +24,4 @@ name = "image_converter"
 path = "tools/image_converter.rs"
 
 [dependencies]
+minifb = "0.27"
