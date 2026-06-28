@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "assembler"]
+members = [".", "assembler", "rsc"]
 resolver = "2"
 
 [package]
