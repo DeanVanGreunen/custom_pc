@@ -13,22 +13,22 @@ pub struct Bus;
 impl Bus {
     pub fn new() -> Self { Bus }
 
-    pub fn io_read(&mut self, port: u16) -> EmuResult<u16> {
+    pub fn io_read(&mut self, port: u32) -> EmuResult<u32> {
         match port {
-            0x0000 => Ok(0),
+            0x0000 => Ok(0u32),
             0x0001 => {
                 let mut buf = [0u8; 1];
                 match std::io::stdin().read(&mut buf) {
-                    Ok(0) => Ok(0xFFFF), // EOF
-                    Ok(_) => Ok(buf[0] as u16),
-                    Err(_) => Ok(0xFFFF),
+                    Ok(0) => Ok(0xFFFF_FFFFu32), // EOF
+                    Ok(_) => Ok(buf[0] as u32),
+                    Err(_) => Ok(0xFFFF_FFFFu32),
                 }
             }
             other => Err(EmulatorError::IllegalIoPort(other)),
         }
     }
 
-    pub fn io_write(&mut self, port: u16, value: u16) -> EmuResult<()> {
+    pub fn io_write(&mut self, port: u32, value: u32) -> EmuResult<()> {
         match port {
             0x0000 => {
                 let byte = (value & 0xFF) as u8;

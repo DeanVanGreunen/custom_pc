@@ -1,4 +1,4 @@
-//! 64 KiB flat address space with memory-mapped pixel display.
+//! 1 GiB flat address space with memory-mapped pixel display.
 //!
 //! Address routing:
 //!   0xA000–0xBFFF → pixel framebuffer bank window  (PixelDisplay)
@@ -37,14 +37,14 @@ impl Memory {
 
     // ── byte access ──────────────────────────────────────────────────────────
 
-    pub fn read_byte(&self, addr: u16) -> u8 {
+    pub fn read_byte(&self, addr: u32) -> u8 {
         match addr {
             FB_PIXEL_BASE..=FB_PIXEL_END => self.pixel_display.read_byte(addr),
             _ => self.data[addr as usize],
         }
     }
 
-    pub fn write_byte(&mut self, addr: u16, value: u8) {
+    pub fn write_byte(&mut self, addr: u32, value: u8) {
         match addr {
             FB_PIXEL_BASE..=FB_PIXEL_END => {
                 self.pixel_display.write_byte(addr, value);
@@ -72,21 +72,25 @@ impl Memory {
 
     // ── word access (little-endian) ──────────────────────────────────────────
 
-    pub fn read_word(&self, addr: u16) -> EmuResult<u16> {
-        if addr == 0xFFFF {
+    pub fn read_word(&self, addr: u32) -> EmuResult<u32> {
+        if addr as usize + 3 >= MEM_SIZE {
             return Err(EmulatorError::IllegalMemoryAccess(addr));
         }
-        let lo = self.read_byte(addr) as u16;
-        let hi = self.read_byte(addr + 1) as u16;
-        Ok(lo | (hi << 8))
+        let b0 = self.read_byte(addr) as u32;
+        let b1 = self.read_byte(addr + 1) as u32;
+        let b2 = self.read_byte(addr + 2) as u32;
+        let b3 = self.read_byte(addr + 3) as u32;
+        Ok(b0 | (b1 << 8) | (b2 << 16) | (b3 << 24))
     }
 
-    pub fn write_word(&mut self, addr: u16, value: u16) -> EmuResult<()> {
-        if addr == 0xFFFF {
+    pub fn write_word(&mut self, addr: u32, value: u32) -> EmuResult<()> {
+        if addr as usize + 3 >= MEM_SIZE {
             return Err(EmulatorError::IllegalMemoryAccess(addr));
         }
         self.write_byte(addr,     (value & 0xFF) as u8);
-        self.write_byte(addr + 1, (value >> 8)   as u8);
+        self.write_byte(addr + 1, ((value >> 8) & 0xFF) as u8);
+        self.write_byte(addr + 2, ((value >> 16) & 0xFF) as u8);
+        self.write_byte(addr + 3, ((value >> 24) & 0xFF) as u8);
         Ok(())
     }
 

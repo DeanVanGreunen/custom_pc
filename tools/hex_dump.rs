@@ -9,10 +9,10 @@ fn main() {
     }
 
     let path = PathBuf::from(&args[1]);
-    let base: u16 = args.get(2)
+    let base: u32 = args.get(2)
         .and_then(|s| {
             let s = s.strip_prefix("0x").or_else(|| s.strip_prefix("0X")).unwrap_or(s);
-            u16::from_str_radix(s, 16).ok()
+            u32::from_str_radix(s, 16).ok()
         })
         .unwrap_or(0);
 

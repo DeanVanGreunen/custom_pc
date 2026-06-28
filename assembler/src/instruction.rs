@@ -59,8 +59,8 @@ macro_rules! opcodes {
                     OperandFormat::None   => 1,
                     OperandFormat::Reg    => 2,
                     OperandFormat::RegReg => 2,
-                    OperandFormat::RegImm => 4,
-                    OperandFormat::Imm    => 3,
+                    OperandFormat::RegImm => 6,
+                    OperandFormat::Imm    => 5,
                 }
             }
         }
@@ -89,6 +89,9 @@ opcodes! {
     Andi = 0x12, "andi", RegImm;
     Ori  = 0x13, "ori",  RegImm;
     Xori = 0x14, "xori", RegImm;
+    Mul  = 0x17, "mul",  RegReg;
+    Div  = 0x18, "div",  RegReg;
+    Mod  = 0x19, "mod",  RegReg;
     Cmp  = 0x15, "cmp",  RegReg;
     Cmpi = 0x16, "cmpi", RegImm;
     Push = 0x20, "push", Reg;
@@ -110,4 +113,16 @@ opcodes! {
     Jle  = 0x3C, "jle",  Imm;
     In   = 0x40, "in",   RegImm;
     Out  = 0x41, "out",  RegImm;
+    Fadd  = 0x50, "fadd",  RegReg;
+    Fsub  = 0x51, "fsub",  RegReg;
+    Fmul  = 0x52, "fmul",  RegReg;
+    Fdiv  = 0x53, "fdiv",  RegReg;
+    Fmod  = 0x54, "fmod",  RegReg;
+    Fneg  = 0x55, "fneg",  Reg;
+    Fabs  = 0x56, "fabs",  Reg;
+    Fsqrt = 0x57, "fsqrt", Reg;
+    Fcmp  = 0x58, "fcmp",  RegReg;
+    Ftoi  = 0x59, "ftoi",  Reg;
+    Itof  = 0x5A, "itof",  Reg;
+    Fldi  = 0x5F, "fldi",  RegImm;
 }

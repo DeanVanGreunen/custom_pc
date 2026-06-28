@@ -17,7 +17,7 @@ pub enum CpuState {
 pub struct Cpu {
     pub regs:  Registers,
     pub flags: Flags,
-    pub pc:    u16,
+    pub pc:    u32,
     pub state: CpuState,
     /// Total instructions executed (useful for debugging and tests).
     pub cycles: u64,
@@ -28,7 +28,7 @@ impl Cpu {
         Cpu {
             regs:   Registers::new(),
             flags:  Flags::new(),
-            pc:     0x0000,
+            pc:     0x0000u32,
             state:  CpuState::Running,
             cycles: 0,
         }

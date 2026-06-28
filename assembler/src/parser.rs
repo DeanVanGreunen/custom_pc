@@ -127,8 +127,12 @@ impl Parser {
                 let args = self.parse_data_args()?;
                 items.push(Item::Data { kind: DataKind::Byte, args, line });
             }
+            "float" => {
+                let args = self.parse_data_args()?;
+                items.push(Item::Data { kind: DataKind::Float, args, line });
+            }
             "org" => {
-                let addr = self.parse_imm_u16()?;
+                let addr = self.parse_imm_u32()?;
                 items.push(Item::Org { addr, line });
             }
             "equ" => {
@@ -185,6 +189,10 @@ impl Parser {
                 let n = match self.advance() { Some(Token::Number(n)) => *n, _ => unreachable!() };
                 Ok(Operand::Imm(n))
             }
+            Some(Token::Float(_)) => {
+                let f = match self.advance() { Some(Token::Float(f)) => *f, _ => unreachable!() };
+                Ok(Operand::FImm(f))
+            }
             Some(Token::Ident(_)) => {
                 let s = match self.advance() { Some(Token::Ident(s)) => s.clone(), _ => unreachable!() };
                 Ok(Operand::Symbol(s))
@@ -215,6 +223,10 @@ impl Parser {
                 let n = match self.advance() { Some(Token::Number(n)) => *n, _ => unreachable!() };
                 Ok(DataArg::Number(n))
             }
+            Some(Token::Float(_)) => {
+                let f = match self.advance() { Some(Token::Float(f)) => *f, _ => unreachable!() };
+                Ok(DataArg::Float(f))
+            }
             Some(Token::Str(_)) => {
                 let s = match self.advance() { Some(Token::Str(s)) => s.clone(), _ => unreachable!() };
                 Ok(DataArg::Str(s))
@@ -237,12 +249,12 @@ impl Parser {
         }
     }
 
-    fn parse_imm_u16(&mut self) -> AsmResult<u16> {
+    fn parse_imm_u32(&mut self) -> AsmResult<u32> {
         let line = self.line;
         let n = self.parse_imm_i64()?;
-        if n < 0 || n > 0xFFFF {
-            return Err(AsmError::new(line, format!("address 0x{n:X} out of 16-bit range")));
+        if n < 0 || n > 0xFFFF_FFFF {
+            return Err(AsmError::new(line, format!("address 0x{n:X} out of 32-bit range")));
         }
-        Ok(n as u16)
+        Ok(n as u32)
     }
 }

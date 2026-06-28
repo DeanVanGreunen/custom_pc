@@ -1,5 +1,5 @@
 ; fibonacci.asm — compute the first 16 Fibonacci numbers and display each as
-; a 4-digit hex string on the text framebuffer and serial port.
+; a decimal number on the text framebuffer and serial port.
 ;
 ; Text framebuffer: base 0xC000, 2 bytes per cell.
 ;   byte 0: ASCII character
@@ -10,9 +10,12 @@
 ;   r1 = next fib value (b)
 ;   r2 = iteration counter
 ;   r5 = text-FB write pointer  (shared with subroutines — they advance it)
-;   r6 = nibble / character temp  (subroutine arg/scratch)
-;   r7 = shift amount temp  (subroutine scratch)
+;   r6 = working copy of value to print  (print_dec argument)
+;   r7 = leading-zero-suppressed flag  (print_dec scratch)
+;   r8 = divisor temp  (print_dec scratch)
+;   r9 = digit temp  (print_dec / pd_emit argument)
 ;   r3 = attribute byte  (subroutine scratch)
+;   r4 = temp for fibonacci swap
 
         .equ STDOUT,  0x0000
         .equ FB_BASE, 0xC000
@@ -27,17 +30,18 @@ fib_loop:
         cmpi r2, 0
         jz   done
 
-        ; print r0 as 4 hex digits, advancing r5
-        call print_hex4
+        ; print r0 as decimal; pass value in r6 (leaves r0 intact)
+        mov  r6, r0
+        call print_dec
 
         ; write a space separator
-        ldi  r6, 0x20
-        stb  [r5], r6
+        ldi  r9, 0x20
+        stb  [r5], r9
         addi r5, 1
         ldi  r3, ATTR
         stb  [r5], r3
         addi r5, 1
-        out  r6, STDOUT
+        out  r9, STDOUT
 
         ; advance fibonacci: a, b = b, a+b
         mov  r4, r1
@@ -50,54 +54,86 @@ fib_loop:
 done:
         hlt
 
-; ── print_hex4 ────────────────────────────────────────────────────────────────
-; Print r0 as a 4-digit hex string to FB at [r5], advancing r5 by 8 bytes.
-; Also emits each character to serial.
-; Clobbers: r3, r6, r7.  Preserves: r0, r1, r2, r4.
+; ── print_dec ─────────────────────────────────────────────────────────────────
+; Print r6 (u32) as a decimal string with no leading zeros.
+; If r6 == 0 the single character '0' is emitted.
+; Advances r5 (text-FB pointer).  Clobbers: r3, r6, r7, r8, r9.
 
-print_hex4:
-        mov  r6, r0
-        ldi  r7, 12
-        shr  r6, r7
-        andi r6, 0x0F
-        call print_nibble
+print_dec:
+        ldi  r7, 0              ; r7 = printed_something flag
 
-        mov  r6, r0
-        ldi  r7, 8
-        shr  r6, r7
-        andi r6, 0x0F
-        call print_nibble
+        ; ── ten-thousands digit ──────────────────────────────────────────────
+        ldi  r8, 10000
+        mov  r9, r6
+        div  r9, r8             ; r9 = r6 / 10000
+        mod  r6, r8             ; r6 = r6 % 10000
+        cmpi r9, 0
+        jnz  pd_e10k
+        jmp  pd_thou
+pd_e10k:
+        ldi  r7, 1
+        call pd_emit
 
-        mov  r6, r0
-        ldi  r7, 4
-        shr  r6, r7
-        andi r6, 0x0F
-        call print_nibble
+        ; ── thousands digit ──────────────────────────────────────────────────
+pd_thou:
+        ldi  r8, 1000
+        mov  r9, r6
+        div  r9, r8
+        mod  r6, r8
+        cmpi r9, 0
+        jnz  pd_ethou
+        cmpi r7, 0
+        jz   pd_hund
+pd_ethou:
+        ldi  r7, 1
+        call pd_emit
 
-        mov  r6, r0
-        andi r6, 0x0F
-        call print_nibble
+        ; ── hundreds digit ───────────────────────────────────────────────────
+pd_hund:
+        ldi  r8, 100
+        mov  r9, r6
+        div  r9, r8
+        mod  r6, r8
+        cmpi r9, 0
+        jnz  pd_ehund
+        cmpi r7, 0
+        jz   pd_tens
+pd_ehund:
+        ldi  r7, 1
+        call pd_emit
+
+        ; ── tens digit ───────────────────────────────────────────────────────
+pd_tens:
+        ldi  r8, 10
+        mov  r9, r6
+        div  r9, r8
+        mod  r6, r8
+        cmpi r9, 0
+        jnz  pd_etens
+        cmpi r7, 0
+        jz   pd_ones
+pd_etens:
+        ldi  r7, 1
+        call pd_emit
+
+        ; ── ones digit (always emit) ─────────────────────────────────────────
+pd_ones:
+        mov  r9, r6
+        call pd_emit
 
         ret
 
-; ── print_nibble ──────────────────────────────────────────────────────────────
-; Convert r6 (0–15) to its hex character, write to FB at [r5] with attr ATTR,
-; advance r5 by 2, and emit to serial.
-; Clobbers: r6, r3.
+; ── pd_emit ───────────────────────────────────────────────────────────────────
+; Write digit r9 (0–9) to the text FB at [r5] with attribute ATTR,
+; advance r5 by 2, and emit the ASCII character to serial.
+; Clobbers: r3, r9.
 
-print_nibble:
-        cmpi r6, 10
-        jlt  pn_digit
-        addi r6, 55             ; 'A'–10 = 55  →  A–F
-        jmp  pn_write
-pn_digit:
-        addi r6, 48             ; '0' = 48
-
-pn_write:
-        stb  [r5], r6
+pd_emit:
+        addi r9, 0x30
+        stb  [r5], r9
         addi r5, 1
         ldi  r3, ATTR
         stb  [r5], r3
         addi r5, 1
-        out  r6, STDOUT
+        out  r9, STDOUT
         ret

@@ -43,7 +43,7 @@ fn pass_one(items: &[Item]) -> AsmResult<SymbolTable> {
                 if (*a as usize) < addr {
                     return Err(AsmError::new(
                         *line,
-                        format!(".org 0x{a:04X} moves backwards from 0x{addr:04X}"),
+                        format!(".org 0x{a:08X} moves backwards from 0x{addr:08X}"),
                     ));
                 }
                 addr = *a as usize;
@@ -54,9 +54,6 @@ fn pass_one(items: &[Item]) -> AsmResult<SymbolTable> {
             Item::Data { kind, args, line } => {
                 addr += data_length(*kind, args, *line)?;
             }
-        }
-        if addr > 0x1_0000 {
-            return Err(AsmError::new(0, "program exceeds 64 KiB address space"));
         }
     }
     Ok(symbols)
@@ -96,7 +93,8 @@ fn data_length(kind: DataKind, args: &[DataArg], _line: usize) -> AsmResult<usiz
     let mut len = 0;
     for arg in args {
         len += match (kind, arg) {
-            (DataKind::Word, _) => 2,
+            (DataKind::Word, _) => 4,
+            (DataKind::Float, _) => 4,
             (_, DataArg::Str(s)) => s.len(),
             (_, _) => 1,
         };
@@ -164,12 +162,16 @@ fn encode_instruction(
             let imm = imm_of(&operands[1], symbols, line)?;
             out.push(pack_regs(rd, 0));
             out.push((imm & 0xFF) as u8);
-            out.push((imm >> 8) as u8);
+            out.push(((imm >> 8) & 0xFF) as u8);
+            out.push(((imm >> 16) & 0xFF) as u8);
+            out.push(((imm >> 24) & 0xFF) as u8);
         }
         OperandFormat::Imm => {
             let imm = imm_of(&operands[0], symbols, line)?;
             out.push((imm & 0xFF) as u8);
-            out.push((imm >> 8) as u8);
+            out.push(((imm >> 8) & 0xFF) as u8);
+            out.push(((imm >> 16) & 0xFF) as u8);
+            out.push(((imm >> 24) & 0xFF) as u8);
         }
     }
     Ok(())
@@ -185,21 +187,45 @@ fn encode_data(
     for arg in args {
         match (kind, arg) {
             (DataKind::Word, DataArg::Number(n)) => {
-                let w = *n as u16;
+                let w = *n as u32;
                 out.push((w & 0xFF) as u8);
-                out.push((w >> 8) as u8);
+                out.push(((w >> 8) & 0xFF) as u8);
+                out.push(((w >> 16) & 0xFF) as u8);
+                out.push(((w >> 24) & 0xFF) as u8);
             }
             (DataKind::Word, DataArg::Symbol(name)) => {
-                let w = symbols.resolve(name, line)? as u16;
+                let w = symbols.resolve(name, line)? as u32;
                 out.push((w & 0xFF) as u8);
-                out.push((w >> 8) as u8);
+                out.push(((w >> 8) & 0xFF) as u8);
+                out.push(((w >> 16) & 0xFF) as u8);
+                out.push(((w >> 24) & 0xFF) as u8);
             }
             (DataKind::Word, DataArg::Str(_)) => {
                 return Err(AsmError::new(line, ".word does not take a string"));
             }
+            (DataKind::Float, DataArg::Float(f)) => {
+                let bits = (*f as f32).to_bits();
+                out.push((bits & 0xFF) as u8);
+                out.push(((bits >> 8) & 0xFF) as u8);
+                out.push(((bits >> 16) & 0xFF) as u8);
+                out.push(((bits >> 24) & 0xFF) as u8);
+            }
+            (DataKind::Float, DataArg::Number(n)) => {
+                let bits = (*n as f32).to_bits();
+                out.push((bits & 0xFF) as u8);
+                out.push(((bits >> 8) & 0xFF) as u8);
+                out.push(((bits >> 16) & 0xFF) as u8);
+                out.push(((bits >> 24) & 0xFF) as u8);
+            }
+            (DataKind::Float, _) => {
+                return Err(AsmError::new(line, ".float requires a number or float literal"));
+            }
             (_, DataArg::Number(n)) => out.push(*n as u8),
             (_, DataArg::Symbol(name)) => out.push(symbols.resolve(name, line)? as u8),
             (_, DataArg::Str(s)) => out.extend_from_slice(s.as_bytes()),
+            (_, DataArg::Float(_)) => {
+                return Err(AsmError::new(line, "float literal not valid here"));
+            }
         }
     }
     Ok(())
@@ -219,10 +245,11 @@ fn mem_of(op: &Operand, line: usize) -> AsmResult<u8> {
     }
 }
 
-fn imm_of(op: &Operand, symbols: &SymbolTable, line: usize) -> AsmResult<u16> {
+fn imm_of(op: &Operand, symbols: &SymbolTable, line: usize) -> AsmResult<u32> {
     match op {
-        Operand::Imm(n) => Ok(*n as u16),
-        Operand::Symbol(name) => Ok(symbols.resolve(name, line)? as u16),
+        Operand::Imm(n) => Ok(*n as u32),
+        Operand::Symbol(name) => Ok(symbols.resolve(name, line)? as u32),
+        Operand::FImm(f) => Ok((*f as f32).to_bits()),
         other => Err(AsmError::new(line, format!("expected an immediate, found {other:?}"))),
     }
 }
@@ -240,18 +267,20 @@ mod tests {
 
     #[test]
     fn encodes_ldi_hlt() {
+        // ldi r0, 0x1234 → opcode 0x03, reg 0x00, imm32 LE [0x34, 0x12, 0x00, 0x00] = 6 bytes
+        // hlt → 0x01 = 1 byte; total 7
         let img = asm("ldi r0, 0x1234\nhlt");
-        assert_eq!(img, vec![0x03, 0x00, 0x34, 0x12, 0x01]);
+        assert_eq!(img, vec![0x03, 0x00, 0x34, 0x12, 0x00, 0x00, 0x01]);
     }
 
     #[test]
     fn resolves_forward_label() {
         // jmp end ; nop ; end: hlt
+        // jmp (0x30) = 5 bytes, nop at 5, hlt at 6. jmp target = 6.
         let img = asm("jmp end\nnop\nend: hlt");
-        // jmp (0x30) to address 0x0004, then nop (0x00) at 3, hlt at 4.
-        assert_eq!(&img[0..3], &[0x30, 0x04, 0x00]);
-        assert_eq!(img[3], 0x00); // nop
-        assert_eq!(img[4], 0x01); // hlt
+        assert_eq!(&img[0..5], &[0x30, 0x06, 0x00, 0x00, 0x00]);
+        assert_eq!(img[5], 0x00); // nop
+        assert_eq!(img[6], 0x01); // hlt
     }
 
     #[test]
@@ -262,8 +291,9 @@ mod tests {
 
     #[test]
     fn data_directives() {
+        // .word 0xBEEF → 4 bytes LE: [0xEF, 0xBE, 0x00, 0x00]
         let img = asm(".byte 1, 2\n.word 0xBEEF\n.string \"AB\"");
-        assert_eq!(img, vec![1, 2, 0xEF, 0xBE, b'A', b'B']);
+        assert_eq!(img, vec![1, 2, 0xEF, 0xBE, 0x00, 0x00, b'A', b'B']);
     }
 
     #[test]

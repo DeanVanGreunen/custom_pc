@@ -15,7 +15,7 @@ pub const PIXEL_COUNT: usize = SCREEN_W * SCREEN_H;
 
 // ── Text-mode layout ─────────────────────────────────────────────────────────
 
-pub const FB_BASE: u16      = 0xC000;
+pub const FB_BASE: u32      = 0xC000;
 pub const CELL_WIDTH: usize = 8;   // glyph pixels wide  (matches FONT_8X8 width)
 pub const CELL_HEIGHT: usize = 16; // cell pixels tall   (font rows are doubled)
 pub const FB_COLS: usize    = SCREEN_W / CELL_WIDTH;   // 128
@@ -218,14 +218,14 @@ impl Display {
 pub const BYTES_PER_PIXEL: usize = 2;
 pub const PIXEL_FB_SIZE: usize   = SCREEN_W * SCREEN_H * BYTES_PER_PIXEL;
 
-pub const FB_PIXEL_BASE:   u16   = 0xA000;
-pub const FB_PIXEL_END:    u16   = 0xBFFF;
+pub const FB_PIXEL_BASE:   u32   = 0xA000;
+pub const FB_PIXEL_END:    u32   = 0xBFFF;
 pub const FB_PIXEL_WINDOW: usize = 0x2000;
 pub const FB_PIXEL_BANKS:  usize = PIXEL_FB_SIZE.div_ceil(FB_PIXEL_WINDOW);
 
-pub const REG_DISP_MODE: u16 = 0xCFA0;
-pub const REG_FB_BANK:   u16 = 0xCFA1;
-pub const REG_DISP_CTRL: u16 = 0xCFA2;
+pub const REG_DISP_MODE: u32 = 0xCFA0;
+pub const REG_FB_BANK:   u32 = 0xCFA1;
+pub const REG_DISP_CTRL: u32 = 0xCFA2;
 
 /// Pixel format (14-bit ARGB packed into a u16):
 ///   bits 13–12  Alpha (0=transparent … 3=opaque)
@@ -245,7 +245,7 @@ impl PixelDisplay {
         Self { framebuffer: vec![0u16; PIXEL_COUNT], bank: 0, mode: 0, ctrl: 0 }
     }
 
-    pub fn write_byte(&mut self, addr: u16, val: u8) {
+    pub fn write_byte(&mut self, addr: u32, val: u8) {
         let offset    = (addr - FB_PIXEL_BASE) as usize;
         let byte_pos  = self.bank as usize * FB_PIXEL_WINDOW + offset;
         let pixel_idx = byte_pos / 2;
@@ -257,7 +257,7 @@ impl PixelDisplay {
         }
     }
 
-    pub fn read_byte(&self, addr: u16) -> u8 {
+    pub fn read_byte(&self, addr: u32) -> u8 {
         let offset    = (addr - FB_PIXEL_BASE) as usize;
         let byte_pos  = self.bank as usize * FB_PIXEL_WINDOW + offset;
         let pixel_idx = byte_pos / 2;

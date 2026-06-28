@@ -7,6 +7,7 @@ pub enum Token {
     Ident(String),
     Reg(u8),
     Number(i64),
+    Float(f64),
     Str(String),
     Dot,
     Colon,
@@ -113,9 +114,33 @@ pub fn lex(src: &str) -> AsmResult<Vec<Token>> {
                         break;
                     }
                 }
-                let n = num.parse::<i64>()
-                    .map_err(|_| AsmError::new(line, format!("invalid integer '{num}'")))?;
-                tokens.push(Token::Number(n));
+                // Check for decimal point → float literal
+                if matches!(chars.peek(), Some((_, '.'))) {
+                    chars.next(); // consume '.'
+                    num.push('.');
+                    while let Some(&(_, d)) = chars.peek() {
+                        if d.is_ascii_digit() { num.push(d); chars.next(); } else { break; }
+                    }
+                    // Optional 'e'/'E' exponent
+                    if matches!(chars.peek(), Some((_, 'e' | 'E'))) {
+                        num.push('e'); chars.next();
+                        if matches!(chars.peek(), Some((_, '+' | '-'))) {
+                            if let Some((_, c)) = chars.next() { num.push(c); }
+                        }
+                        while let Some(&(_, d)) = chars.peek() {
+                            if d.is_ascii_digit() { num.push(d); chars.next(); } else { break; }
+                        }
+                    }
+                    // Optional 'f'/'F' suffix (discard — we always produce f64)
+                    if matches!(chars.peek(), Some((_, 'f' | 'F'))) { chars.next(); }
+                    let f = num.parse::<f64>()
+                        .map_err(|_| AsmError::new(line, format!("invalid float literal '{num}'")))?;
+                    tokens.push(Token::Float(f));
+                } else {
+                    let n = num.parse::<i64>()
+                        .map_err(|_| AsmError::new(line, format!("invalid integer '{num}'")))?;
+                    tokens.push(Token::Number(n));
+                }
             }
 
             c if c.is_alphabetic() || c == '_' => {

@@ -8,7 +8,7 @@ pub enum Item {
     /// `.equ NAME, value` — symbolic constant.
     Equ { name: String, value: i64, line: usize },
     /// `.org address` — set the current assembly address.
-    Org { addr: u16, line: usize },
+    Org { addr: u32, line: usize },
     /// An assembly instruction.
     Instruction { mnemonic: String, operands: Vec<Operand>, line: usize },
     /// A data directive (`.byte`, `.word`, `.string`).
@@ -26,6 +26,8 @@ pub enum Operand {
     Imm(i64),
     /// Symbolic reference (label or `.equ` constant).
     Symbol(String),
+    /// IEEE 754 float immediate (used with `fldi`).
+    FImm(f64),
 }
 
 /// Selects which data directive produced a [`Item::Data`] node.
@@ -33,6 +35,7 @@ pub enum Operand {
 pub enum DataKind {
     Byte,
     Word,
+    Float,
 }
 
 /// One argument to a data directive.
@@ -41,4 +44,5 @@ pub enum DataArg {
     Number(i64),
     Symbol(String),
     Str(String),
+    Float(f64),
 }
